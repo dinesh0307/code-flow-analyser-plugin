@@ -1,18 +1,39 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.github.dinesh0307.codeflowanalyserplugin</id>
-    <name>code-flow-analyser-plugin</name>
+    <name>code-flow-analyser</name>
     <vendor>dinesh0307</vendor>
 
     <depends>com.intellij.modules.platform</depends>
 
     <resource-bundle>messages.MyBundle</resource-bundle>
 
+    <!-- Add this to your plugin.xml file -->
+    <actions>
+        <action id="com.yourpackage.actions.AiderAnalyzeAction"
+                class="com.dinesh.codeflowanalyser.actions.AiderAnalyzeAction"
+                text="Analyze with Aider"
+                description="Analyze code flow with Aider">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="shift ctrl A"/>
+        </action>
+    </actions>
+
     <extensions defaultExtensionNs="com.intellij">
+        <!-- Register the Aider tool window -->
+        <toolWindow id="Aider"
+                    secondary="false"
+                    icon="AllIcons.General.Modified"
+                    anchor="bottom"
+                    factoryClass="com.dinesh.codeflowanalyser.ui.AiderToolWindowFactory"/>
+    </extensions>
+    <!--<extensions defaultExtensionNs="com.intellij">
         <toolWindow factoryClass="com.github.dinesh0307.codeflowanalyserplugin.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
     </extensions>
 
     <applicationListeners>
         <listener class="com.github.dinesh0307.codeflowanalyserplugin.listeners.MyApplicationActivationListener" topic="com.intellij.openapi.application.ApplicationActivationListener"/>
-    </applicationListeners>
+    </applicationListeners>-->
 </idea-plugin>
+
+
