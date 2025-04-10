@@ -15,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -25,13 +26,16 @@ public final class AiderService {
     private final Project project;
     private ProcessHandler currentProcessHandler;
     private Consumer<String> outputConsumer;
+    private boolean sessionInitialized = false;
+    private List<String> pendingClassNames;
+    private String pendingPrompt;
 
     public AiderService(Project project) {
         this.project = project;
     }
 
     /**
-     * Starts a new Aider session with the specified files
+     * Starts a new Aider session with the specified model and prepares to add files
      *
      * @param classNames List of class names to include in the session
      * @param prompt Initial prompt to send to Aider
@@ -47,40 +51,59 @@ public final class AiderService {
                 currentProcessHandler.destroyProcess();
             }
 
-            // Build command to start aider with the specified files
+            // Reset session state
+            sessionInitialized = false;
+            pendingClassNames = classNames;
+            pendingPrompt = prompt;
+
+            // Get the OLLAMA_API_BASE environment variable
+            String ollamaApiBase = System.getenv("OLLAMA_API_BASE");
+            if (ollamaApiBase == null || ollamaApiBase.isEmpty()) {
+                onOutput.accept("Error: OLLAMA_API_BASE environment variable is not set\n");
+                future.completeExceptionally(new IllegalStateException("OLLAMA_API_BASE not set"));
+                return future;
+            }
+
+            // Build command to start aider with the specified model
             GeneralCommandLine commandLine = new GeneralCommandLine("aider");
             commandLine.setWorkDirectory(project.getBasePath());
 
-            // Add all class files to the command
-            for (String className : classNames) {
-                // Convert class name to file path (assuming standard Java package structure)
-                String filePath = className.replace('.', '/') + ".java";
-                commandLine.addParameter(filePath);
-            }
+            // Add model and API key parameters
+            commandLine.addParameter("--model");
+            commandLine.addParameter("ollama_chat/llama3.2");
+            commandLine.addParameter("--api-key");
+            commandLine.addParameter(ollamaApiBase);
 
-            // Add initial prompt if provided
-            if (prompt != null && !prompt.isEmpty()) {
-                commandLine.addParameter("--message");
-                commandLine.addParameter(prompt);
-            }
+            // Set environment variables
+            Map<String, String> env = commandLine.getEnvironment();
+            env.put("OLLAMA_API_BASE", ollamaApiBase);
 
             // Start the process
             currentProcessHandler = new OSProcessHandler(commandLine);
             this.outputConsumer = onOutput;
 
-            // Add listener to capture output
+            // Add listener to capture output and detect when session is ready
             currentProcessHandler.addProcessListener(new ProcessAdapter() {
                 @Override
                 public void onTextAvailable(@NotNull ProcessEvent event, @NotNull Key outputType) {
+                    String text = event.getText();
                     if (outputConsumer != null) {
-                        outputConsumer.accept(event.getText());
+                        outputConsumer.accept(text);
+                    }
+
+                    // Detect when the aider session is initialized and ready for commands
+                    // This is a heuristic - we're looking for the prompt pattern
+                    if (!sessionInitialized && text.contains(">") && text.trim().endsWith(">")) {
+                        sessionInitialized = true;
+                        // Add the files one by one
+                        addClassFilesAndSendPrompt();
                     }
                 }
 
                 @Override
                 public void processTerminated(@NotNull ProcessEvent event) {
                     if (outputConsumer != null) {
-                        outputConsumer.accept("[Process terminated with exit code " + event.getExitCode() + "]");
+                        outputConsumer.accept("\n[Process terminated with exit code " + event.getExitCode() + "]\n");
                     }
                 }
             });
@@ -90,10 +113,53 @@ public final class AiderService {
 
         } catch (ExecutionException e) {
             LOG.error("Failed to start Aider process", e);
+            if (outputConsumer != null) {
+                outputConsumer.accept("Error starting Aider: " + e.getMessage() + "\n");
+            }
             future.completeExceptionally(e);
         }
 
         return future;
+    }
+
+    /**
+     * Adds all class files to the session using the /add command
+     * and then sends the initial prompt
+     */
+    private void addClassFilesAndSendPrompt() {
+        if (pendingClassNames == null || pendingClassNames.isEmpty()) {
+            // If no classes to add, just send the prompt
+            if (pendingPrompt != null && !pendingPrompt.isEmpty()) {
+                sendInput(pendingPrompt);
+            }
+            return;
+        }
+
+        // Schedule a task to add files with a small delay between commands
+        CompletableFuture.runAsync(() -> {
+            try {
+                for (String className : pendingClassNames) {
+                    // Convert class name to file path (assuming standard Java package structure)
+                    String filePath = className.replace('.', '/') + ".java";
+                    String addCommand = "/add " + filePath;
+
+                    // Send the /add command
+                    sendInput(addCommand);
+
+                    // Wait a bit to let Aider process the command
+                    Thread.sleep(500);
+                }
+
+                // After adding all files, send the initial prompt
+                if (pendingPrompt != null && !pendingPrompt.isEmpty()) {
+                    Thread.sleep(1000); // Give a bit more time before sending the prompt
+                    sendInput(pendingPrompt);
+                }
+            } catch (InterruptedException e) {
+                LOG.error("Interrupted while adding files", e);
+                Thread.currentThread().interrupt();
+            }
+        });
     }
 
     /**
@@ -128,6 +194,9 @@ public final class AiderService {
         if (currentProcessHandler != null && !currentProcessHandler.isProcessTerminated()) {
             currentProcessHandler.destroyProcess();
         }
+        sessionInitialized = false;
+        pendingClassNames = null;
+        pendingPrompt = null;
     }
 
     /**

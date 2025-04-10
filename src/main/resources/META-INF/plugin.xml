@@ -26,6 +26,8 @@
                     icon="AllIcons.General.Modified"
                     anchor="bottom"
                     factoryClass="com.dinesh.codeflowanalyser.ui.AiderToolWindowFactory"/>
+        <toolWindow id="AI Agent" secondary="true" icon="AllIcons.Nodes.Plugin" anchor="right"
+                    factoryClass="com.dinesh.codeflowanalyser.ui.AIAgentToolWindowFactory"/>
     </extensions>
     <!--<extensions defaultExtensionNs="com.intellij">
         <toolWindow factoryClass="com.github.dinesh0307.codeflowanalyserplugin.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>

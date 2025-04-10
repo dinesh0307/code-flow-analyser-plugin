@@ -32,6 +32,9 @@ repositories {
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/platforms.html#sub:version-catalog
 dependencies {
     testImplementation(libs.junit)
+    implementation("com.github.javaparser:javaparser-core:3.23.1")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.0")
+    implementation("org.json:json:20190722")
 
     // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
