@@ -55,7 +55,7 @@ public class CodeParser {
                 classStaticImportMapper.populateStaticImportMap(cu);
                 classToMethodCallsMapper.populateClassToMethodCallsMap(cu);
                 classHeaderMapper.populateClassHeaderMap(cu);
-            } catch (Exception e) {
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
@@ -73,8 +73,8 @@ public class CodeParser {
         System.out.println("Class to Method to Code Block Map: " + classMethodMapper.getClassToMethodToCodeBlockMap());
         System.out.println("Class to Associated Classes Map: " + classAssociationMapper.getClassToAssociatedClassesMap());
         System.out.println("Interface to Implementation Class Map: " + implementsExtendsMapper.getInterfaceToImplementationClassMap());
-        System.out.println("Class to Variables Map: " + classVariableMapper.getClassToVariableMap());
-        System.out.println("Class to Static Import Map: " + classStaticImportMapper.getClassToStaticImportsMap());
+        System.out.println("Class to Variable : " + classVariableMapper.getClassToVariableMap());
+        System.out.println("Class to Static Imports Map: " + classStaticImportMapper.getClassToStaticImportsMap());
         //System.out.println("Configs and Properties Map: " + configPropertiesMapper.getConfigsAndPropertiesMap());
     }
 

@@ -56,7 +56,7 @@ public class ImpactedMethodAnalyzer {
             }
             builder.append("}" + "\n");
             String content = builder.toString();
-            content.replace("\"", "\\\"").replace("\n", "\\n");
+            content = content.replace("\"", "\\\"").replace("\n", "\\n");
             contents.add(content);
         }
         return contents;
@@ -78,7 +78,7 @@ public class ImpactedMethodAnalyzer {
         visitedMethods.add(className + "." + methodName);
 
         if(!classMethodMapper.getClassToMethodToCodeBlockMap().containsKey(className) || !classMethodMapper.getClassToMethodToCodeBlockMap().get(className).containsKey(methodName)){
-            return;;
+            return;
         }
 
         impactedMethods.add("Class: " + className + ", Method: " + methodName);

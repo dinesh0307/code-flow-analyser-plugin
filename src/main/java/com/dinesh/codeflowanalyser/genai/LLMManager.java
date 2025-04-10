@@ -28,9 +28,9 @@ public class LLMManager {
             return;
         }
 
-        String appLocation = getApplication(accessToken);
+        String application = getApplication(accessToken);
         String[] models = getSupportedModels(accessToken);
-        System.out.println(queryLLM(appLocation, models[2], accessToken ));
+        System.out.println(queryLLM(application, models[2], accessToken ));
     }
 
     public static String invokeLLM(List<String> code){
@@ -61,7 +61,7 @@ public class LLMManager {
 
         String application = getApplication(accessToken);
         //String[] models = getSupportedModels(accessToken);
-        String out = queryLLM_hackathon(application, "gpt-4o-2", accessToken, Collections.singletonList(code), className, method);
+        String out = queryLLM_hackathon(application, "gpt-4o-2", accessToken, code, className, method);
         try {
             extractAndPrettyPrint(out);
         } catch (Exception e){
@@ -77,9 +77,9 @@ public class LLMManager {
 
         // Extract message content
         String messageContent = rootNode.path("full_model_response").path("choices").path(0).path("message").path("content").asText();
-        sb.append("Message Content");
+        sb.append("Message Content:");
 
-        System.out.println("Message Content");
+        System.out.println("Message Content:");
         System.out.println(messageContent);
 
         // Extract usage
@@ -108,10 +108,10 @@ public class LLMManager {
 
         // Extract message content
         String messageContent = rootNode.path("choices").path(0).path("message").path("content").asText();
-        sb.append("Message Content");
+        sb.append("Message Content:");
         sb.append(messageContent);
 
-        System.out.println("Message Content");
+        System.out.println("Message Content:");
         System.out.println(messageContent);
 
         // Extract usage

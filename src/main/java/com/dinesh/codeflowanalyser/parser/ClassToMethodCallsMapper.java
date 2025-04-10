@@ -34,7 +34,7 @@ public class ClassToMethodCallsMapper {
                         @Override
                         public void visit(MethodCallExpr methodCall, Void arg) {
                             super.visit(methodCall, arg);
-                            methodCalls.add(methodCall.getNameAsString());
+                            methodCalls.add(methodCall.toString());
                         }
                     }, null);
                     String methodName = methodDeclaration.getNameAsString();

@@ -82,7 +82,7 @@ public class GenAiApiClient {
         data.put("model_name", modelName);
         data.put("application_name", applicationName);
         JSONArray query = new JSONArray();
-        query.put(new JSONObject().put("role", "system").put("content", "You are a AI chat bot"));
+        query.put(new JSONObject().put("role", "system").put("content", "You are a AI chat bot."));
         query.put(new JSONObject().put("role", "user").put("content", "say something about US constitution"));
         data.put("query", query);
         return sendPostRequest(urlString, data.toString(), accessToken);
@@ -212,14 +212,14 @@ public class GenAiApiClient {
     private static String sendGetRequest(String urlString, String accessToken){
         try{
             URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection(Proxy.NO_PROXY);
+            HttpsURLConnection connection = (HttpsURLConnection) url.openConnection(Proxy.NO_PROXY);
             connection.setRequestMethod("GET");
             connection.setRequestProperty("Content-Type", "application/json");
             connection.setRequestProperty("Accept", "application/json");
             connection.setRequestProperty("Authorization", "Bearer " + accessToken);
 
             int responseCode = connection.getResponseCode();
-            if(responseCode == HttpURLConnection.HTTP_OK){
+            if(responseCode == HttpsURLConnection.HTTP_OK){
                 try(Scanner scanner = new Scanner(connection.getInputStream(), StandardCharsets.UTF_8)){
                     return scanner.useDelimiter("\\A").next();
                 }

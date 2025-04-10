@@ -26,7 +26,7 @@ public class ImplementsExtendsMapper {
 
                     String className = cid.getNameAsString();
                     List<String> implementedInterfaces = cid.getImplementedTypes().stream()
-                            .map(type -> type.getNameAsString())
+                            .map(type -> type.getName().asString())
                             .collect(Collectors.toList());
 
                     for (String interfaceName : implementedInterfaces) {
@@ -36,7 +36,7 @@ public class ImplementsExtendsMapper {
                     }
 
                     cid.getExtendedTypes().forEach(extendedType -> {
-                        String extendedTypeName = extendedType.getNameAsString();
+                        String extendedTypeName = extendedType.getName().asString();
                         classToExtendsMap
                                 .computeIfAbsent(className, k -> new ArrayList<>())
                                 .add(extendedTypeName);
