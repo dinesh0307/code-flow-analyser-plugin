@@ -75,9 +75,17 @@ public class OpenAIClient implements ApiClient {
 
     @Override
     public GeneralCommandLine getGeneralCommandLine(Project project, String model) {
-        GeneralCommandLine commandLine = new GeneralCommandLine("aider");
-        commandLine.setWorkDirectory(project.getBasePath());
+        GeneralCommandLine commandLine = null;
 
+        if(isVirtualEnvEnabled()){
+            commandLine = new GeneralCommandLine("/bin/bash");
+            commandLine.setWorkDirectory(project.getBasePath());
+            commandLine.addParameter("-c");
+            commandLine.addParameter("source ~/myenv/bin/activate && aider");
+        }else {
+            commandLine = new GeneralCommandLine("aider");
+            commandLine.setWorkDirectory(project.getBasePath());
+        }
         // Add model and API key parameters
         commandLine.addParameter("--model");
         commandLine.addParameter(model);

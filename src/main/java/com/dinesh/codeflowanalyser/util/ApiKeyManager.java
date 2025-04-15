@@ -96,4 +96,8 @@ public class ApiKeyManager {
 
         return new Credential(userName, password);
     }
+
+    public static boolean isVirtualEnvironmentEnabled(){
+        return Boolean.parseBoolean(properties.getProperty("ENABLE_VIRTUAL_ENV"));
+    }
 }
