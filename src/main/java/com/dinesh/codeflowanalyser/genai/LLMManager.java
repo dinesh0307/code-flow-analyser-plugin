@@ -2,6 +2,7 @@ package com.dinesh.codeflowanalyser.genai;
 
 /* START GENAI@COPILOT */
 
+import com.dinesh.codeflowanalyser.exception.GenAIApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -13,7 +14,7 @@ import java.util.Scanner;
 import static com.dinesh.codeflowanalyser.genai.GenAiApiClient.*;
 
 public class LLMManager {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws GenAIApiException {
         Scanner scanner = new Scanner(System.in);
 
         System.out.print("Enter username: ");
@@ -33,7 +34,7 @@ public class LLMManager {
         System.out.println(queryLLM(application, models[2], accessToken ));
     }
 
-    public static String invokeLLM(List<String> code){
+    public static String invokeLLM(List<String> code) throws GenAIApiException {
         String out = queryLLM_hackathon("gpt-4o", code);
         String ret = "";
         try{
@@ -44,7 +45,7 @@ public class LLMManager {
         return ret;
     }
 
-    public static void invokeLLM(List<String> code, String className, String method){
+    public static void invokeLLM(List<String> code, String className, String method) throws GenAIApiException {
         Scanner scanner = new Scanner(System.in);
 
         System.out.print("Enter username: ");

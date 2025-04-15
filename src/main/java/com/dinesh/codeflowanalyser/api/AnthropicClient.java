@@ -1,6 +1,9 @@
 package com.dinesh.codeflowanalyser.api;
 
+import com.dinesh.codeflowanalyser.dto.ModelInfo;
 import com.dinesh.codeflowanalyser.util.ApiKeyManager;
+import com.intellij.execution.configurations.GeneralCommandLine;
+import com.intellij.openapi.project.Project;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,5 +43,10 @@ public class AnthropicClient implements ApiClient {
     @Override
     public String getApiKey() {
         return ApiKeyManager.getApiKey(ApiType.ANTHROPIC);
+    }
+
+    @Override
+    public GeneralCommandLine getGeneralCommandLine(Project project, String model) {
+        return null;
     }
 }

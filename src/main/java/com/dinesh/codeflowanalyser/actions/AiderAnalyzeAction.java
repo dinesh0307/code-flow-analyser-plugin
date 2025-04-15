@@ -35,7 +35,7 @@ public class AiderAnalyzeAction extends AnAction {
 
         // Get the impacted classes using your Java parser
         JavaParserService javaParserService = project.getService(JavaParserService.class);
-        List<String> impactedClasses = javaParserService.getImpactedClasses(className, methodName);
+        List<String> impactedClasses = javaParserService.getImpactedClasses(className, methodName, null, null);
 
         if (impactedClasses.isEmpty()) {
             return; // No classes found
@@ -70,8 +70,8 @@ public class AiderAnalyzeAction extends AnAction {
                             outputHandler.appendOutput("\nInitial prompt: " + initialPrompt + "\n\n");
 
                             // Start the Aider session
-                            aiderService.startAiderSession(impactedClasses, initialPrompt, outputHandler::appendOutput)
-                                    .thenRun(() -> outputHandler.setInputEnabled(true));
+                           /* aiderService.startAiderSession(impactedClasses, initialPrompt, outputHandler::appendOutput)
+                                    .thenRun(() -> outputHandler.setInputEnabled(true));*/
                         }
                     }
                 }

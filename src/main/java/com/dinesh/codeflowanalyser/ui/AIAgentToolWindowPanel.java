@@ -1,12 +1,12 @@
 package com.dinesh.codeflowanalyser.ui;
 
-import com.dinesh.codeflowanalyser.service.AiderService;
-import com.dinesh.codeflowanalyser.service.CustomAgentService;
+import com.dinesh.codeflowanalyser.exception.GenAIApiException;
+import com.dinesh.codeflowanalyser.service.*;
 import com.dinesh.codeflowanalyser.api.ApiType;
-import com.dinesh.codeflowanalyser.api.ModelInfo;
+import com.dinesh.codeflowanalyser.dto.ModelInfo;
 import com.dinesh.codeflowanalyser.api.ApiClient;
 import com.dinesh.codeflowanalyser.api.ApiFactory;
-import com.dinesh.codeflowanalyser.service.AgentType;
+import com.dinesh.codeflowanalyser.util.PromptUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.ui.JBSplitter;
@@ -18,7 +18,6 @@ import com.intellij.util.ui.JBUI;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ItemEvent;
-import java.util.Collections;
 import java.util.List;
 
 public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
@@ -37,6 +36,7 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
     // Panel for Aider (will use AiderToolWindowFactory's UI)
     private JPanel aiderContainerPanel;
     private AiderToolWindowContent aiderContent;
+    private JComboBox<AnalysisType> analysisTypeComboBox;
 
     public AIAgentToolWindowPanel(Project project) {
         this.project = project;
@@ -110,9 +110,19 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
         modelComboBox = new ComboBox<>();
         panel.add(modelComboBox, gbc);
 
-        // Class name input
+        // Analysis Type selection (new dropdown)
         gbc.gridx = 0;
         gbc.gridy = 3;
+        gbc.weightx = 0;
+        panel.add(new JBLabel("Analysis Type:"), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        analysisTypeComboBox = new ComboBox<>(AnalysisType.values());
+        panel.add(analysisTypeComboBox, gbc);
+
+        // Class name input
+        gbc.gridx = 0;
+        gbc.gridy = 4;
         gbc.weightx = 0;
         panel.add(new JBLabel("Class Name:"), gbc);
 
@@ -123,7 +133,7 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
 
         // Method name input
         gbc.gridx = 0;
-        gbc.gridy = 4;
+        gbc.gridy = 5;
         gbc.weightx = 0;
         panel.add(new JBLabel("Method Name:"), gbc);
 
@@ -134,7 +144,7 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
 
         // Analyze button
         gbc.gridx = 0;
-        gbc.gridy = 5;
+        gbc.gridy = 6;
         gbc.gridwidth = 2;
         gbc.anchor = GridBagConstraints.CENTER;
         analyzeButton = new JButton("Analyze");
@@ -196,7 +206,7 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
         // Load models asynchronously
         new SwingWorker<List<ModelInfo>, Void>() {
             @Override
-            protected List<ModelInfo> doInBackground() {
+            protected List<ModelInfo> doInBackground() throws GenAIApiException {
                 ApiClient apiClient = ApiFactory.createClient(selectedApiType);
                 return apiClient.fetchAvailableModels();
             }
@@ -215,6 +225,12 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
                 } catch (Exception e) {
                     // Handle error
                     SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(
+                                AIAgentToolWindowPanel.this, // Replace with the appropriate parent component
+                                e.getMessage(),
+                                "Loading models error",
+                                JOptionPane.ERROR_MESSAGE
+                        );
                         modelComboBox.removeAllItems();
                         modelComboBox.addItem(new ModelInfo("Error loading models", ""));
                         modelComboBox.setEnabled(false);
@@ -228,12 +244,20 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
         AgentType agentType = (AgentType) agentComboBox.getSelectedItem();
         ApiType apiType = (ApiType) apiComboBox.getSelectedItem();
         ModelInfo model = (ModelInfo) modelComboBox.getSelectedItem();
+        AnalysisType analysisType = (AnalysisType) analysisTypeComboBox.getSelectedItem();
         String className = classNameTextField.getText().trim();
         String methodName = methodNameTextField.getText().trim();
 
         if (className.isEmpty()) {
             JOptionPane.showMessageDialog(this,
                     "Please enter a class name.",
+                    "Validation Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (methodName.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "Please enter a method name.",
                     "Validation Error",
                     JOptionPane.ERROR_MESSAGE);
             return;
@@ -250,17 +274,31 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
         // Disable UI while processing
         setComponentsEnabled(false);
 
+        List<String> impactedClasses = null;
+        try {
+            JavaParserService javaParserService = project.getService(JavaParserService.class);
+            impactedClasses = javaParserService.getImpactedClasses(className, methodName, agentType, analysisType);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this,
+                    e.getMessage(),
+                    "Java Parser Exception",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         if (agentType == AgentType.AIDER) {
             // Use existing Aider service
             AiderService aiderService = project.getService(AiderService.class);
-            String prompt = methodName.isEmpty() ?
-                    "Analyze the class " + className :
-                    "Analyze the method " + methodName + " in class " + className;
+            String prompt = PromptUtil.generatePromptBasedOnAnalysisTypeForAiderAgent(analysisType, className, methodName);
 
             aiderService.startAiderSession(
-                    Collections.singletonList(className),
+                    apiType, model.getDisplayName(),
+                    impactedClasses,
                     prompt,
-                    output -> {} // The AiderOutputHandler already handles the output
+                    output -> {
+                        AiderOutputHandler outputHandler = project.getService(AiderOutputHandler.class);
+                        outputHandler.appendOutput(output);
+                    } // The AiderOutputHandler already handles the output
             ).whenComplete((result, ex) -> {
                 SwingUtilities.invokeLater(() -> setComponentsEnabled(true));
                 if (ex != null) {
@@ -270,6 +308,10 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
                                     "Error",
                                     JOptionPane.ERROR_MESSAGE)
                     );
+                } else {
+                    updateUIBasedOnAgent(AgentType.AIDER);
+                    AiderOutputHandler outputHandler = project.getService(AiderOutputHandler.class);
+                    outputHandler.setInputEnabled(true);
                 }
             });
         } else {
@@ -301,10 +343,12 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
         }
     }
 
+
     private void setComponentsEnabled(boolean enabled) {
         agentComboBox.setEnabled(enabled);
         apiComboBox.setEnabled(enabled);
         modelComboBox.setEnabled(enabled);
+        analysisTypeComboBox.setEnabled(enabled);
         classNameTextField.setEnabled(enabled);
         methodNameTextField.setEnabled(enabled);
         analyzeButton.setEnabled(enabled);

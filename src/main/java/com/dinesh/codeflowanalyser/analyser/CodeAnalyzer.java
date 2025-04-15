@@ -1,6 +1,7 @@
 package com.dinesh.codeflowanalyser.analyser;
 
 
+import com.dinesh.codeflowanalyser.exception.GenAIApiException;
 import com.dinesh.codeflowanalyser.genai.LLMManager;
 import com.dinesh.codeflowanalyser.parser.CodeParser;
 
@@ -33,7 +34,7 @@ public class CodeAnalyzer {
             //List<String> impactedFileList = impactedMethodAnalyzer.getImpactedFileList(codeParser.getClassNameToAbsolutePathMap());
 
             LLMManager.invokeLLM(impactedCodeBlocks, className, method);
-        } catch (IOException e) {
+        } catch (IOException | GenAIApiException e) {
             e.printStackTrace();
         }
     }

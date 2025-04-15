@@ -1,28 +1,39 @@
 package com.dinesh.codeflowanalyser.service;
+
 import com.dinesh.codeflowanalyser.api.ApiClient;
 import com.dinesh.codeflowanalyser.api.ApiFactory;
 import com.dinesh.codeflowanalyser.api.ApiType;
+import com.dinesh.codeflowanalyser.dto.ModelInfo;
+import com.dinesh.codeflowanalyser.exception.GenAIApiException;
+import com.google.gson.JsonObject;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.JavaPsiFacade;
-import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiMethod;
-import com.intellij.psi.search.GlobalSearchScope;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
+
 @Service(Service.Level.PROJECT)
 public final class CustomAgentService {
     private final Project project;
+
     public CustomAgentService(Project project) {
         this.project = project;
     }
-    public String runAnalysis(ApiType apiType, String modelId, String className, String methodName) {
+
+    /**
+     * Analyze the provided code using the specified AI service
+     *
+     * @param apiType The type of API to use (OpenAI, Anthropic, etc.)
+     * @param modelId The specific model to use
+     * @param codeToAnalyze The actual code to be analyzed
+     * @param contextInfo Additional context about the code (e.g., class name, method name)
+     * @return Analysis result as a string
+     */
+    public String runAnalysis(ApiType apiType, String modelId, String codeToAnalyze, String contextInfo) {
         ApiClient apiClient = ApiFactory.createClient(apiType);
         String apiKey = apiClient.getApiKey();
 
@@ -31,29 +42,18 @@ public final class CustomAgentService {
         }
 
         StringBuilder result = new StringBuilder();
-        result.append("Analysis of ").append(className);
-        if (!methodName.isEmpty()) {
-            result.append(".").append(methodName);
-        }
-        result.append("\n\n");
-
+        result.append("Analysis of ").append(contextInfo).append("\n\n");
         result.append("Using model: ").append(modelId).append("\n");
         result.append("API: ").append(apiType).append("\n\n");
 
-        // Find the class code
         try {
-            String code = getClassCode(className, methodName);
+            // Display the code to be analyzed
+            result.append("Code to analyze:\n```java\n").append(codeToAnalyze).append("\n```\n\n");
 
-            if (code == null || code.isEmpty()) {
-                return result.append("Error: Could not find the specified class or method.").toString();
-            }
+            // Send the code to the selected API for analysis
+            String analysisResult = sendAnalysisRequest(apiType, modelId, apiKey, codeToAnalyze, contextInfo);
 
-            result.append("Code to analyze:\n```java\n").append(code).append("\n```\n\n");
-
-            // Now send the code to the selected API for analysis
-            String analysisResult = sendToApi(apiType, modelId, apiKey, code, methodName);
-
-            if (analysisResult != null) {
+            if (analysisResult != null && !analysisResult.isEmpty()) {
                 result.append("=== Analysis Results ===\n\n").append(analysisResult);
             } else {
                 result.append("Failed to get analysis results from API.");
@@ -66,111 +66,120 @@ public final class CustomAgentService {
         return result.toString();
     }
 
-    private String getClassCode(String className, String methodName) {
-        PsiClass psiClass = JavaPsiFacade.getInstance(project)
-                .findClass(className, GlobalSearchScope.allScope(project));
+    private String sendAnalysisRequest(ApiType apiType, String modelId, String apiKey, String code, String contextInfo)
+            throws IOException, InterruptedException {
+        // Create a prompt for the API based on the provided code and context
+        String prompt = "Please analyze the following Java code" +
+                (contextInfo != null && !contextInfo.isEmpty() ? " (" + contextInfo + ")" : "") +
+                " and provide insights on code quality, potential bugs, and optimization opportunities:\n\n" + code;
 
-        if (psiClass == null) {
-            return null;
-        }
-
-        if (methodName != null && !methodName.isEmpty()) {
-            // If method name is specified, return only that method
-            for (PsiMethod method : psiClass.getMethods()) {
-                if (method.getName().equals(methodName)) {
-                    return method.getText();
-                }
-            }
-            // Method not found
-            return null;
-        } else {
-            // Return the entire class code
-            return psiClass.getText();
-        }
-    }
-
-    private String sendToApi(ApiType apiType, String modelId, String apiKey, String code, String methodName) {
-        try {
-            // Create a simple prompt for the API
-            String prompt = "Please analyze the following " +
-                    (methodName.isEmpty() ? "Java class" : "Java method") +
-                    " and provide insights on code quality, potential bugs, and optimization opportunities:\n\n" + code;
-
-            String response = apiClient.sendRequest(apiType, modelId, apiKey, prompt);
-            return response;
-        } catch (Exception e) {
-            return "Error sending to API: " + e.getMessage();
-        }
-    }
-
-    // Method to fetch available models for the given API type
-    public CompletableFuture<String[]> fetchAvailableModels(ApiType apiType, String apiKey) {
         HttpClient client = HttpClient.newHttpClient();
-        String endpoint = getModelListEndpoint(apiType);
+        HttpRequest request;
 
-        if (endpoint == null) {
-            CompletableFuture<String[]> future = new CompletableFuture<>();
-            future.complete(getDefaultModels(apiType));
-            return future;
+        switch (apiType) {
+            case OPENAI:
+                return sendOpenAIRequest(client, modelId, apiKey, prompt);
+            case ANTHROPIC:
+                return sendAnthropicRequest(client, modelId, apiKey, prompt);
+            case OLLAMA:
+                return sendOllamaRequest(client, modelId, apiKey, prompt);
+            default:
+                return "Unsupported API type: " + apiType;
         }
+    }
+
+    private String sendOpenAIRequest(HttpClient client, String modelId, String apiKey, String prompt)
+            throws IOException, InterruptedException {
+        JsonObject jsonRequest = new JsonObject();
+        jsonRequest.addProperty("model", modelId);
+        JsonObject message = new JsonObject();
+        message.addProperty("role", "user");
+        message.addProperty("content", prompt);
+        JsonObject messages = new JsonObject();
+        jsonRequest.add("messages", message);
+        jsonRequest.addProperty("temperature", 0.7);
+        jsonRequest.addProperty("max_tokens", 2048);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.openai.com/v1/chat/completions"))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonRequest.toString()))
+                .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() == 200) {
+            // Parse the response (simplified)
+            // In a real implementation, use proper JSON parsing
+            int startIdx = response.body().indexOf("\"content\":\"") + 11;
+            int endIdx = response.body().indexOf("\"", startIdx);
+            return response.body().substring(startIdx, endIdx).replace("\\n", "\n").replace("\\\"", "\"");
+        } else {
+            return "Error: " + response.statusCode() + " - " + response.body();
+        }
+    }
+
+    private String sendAnthropicRequest(HttpClient client, String modelId, String apiKey, String prompt)
+            throws IOException, InterruptedException {
+        JsonObject jsonRequest = new JsonObject();
+        jsonRequest.addProperty("model", modelId);
+        jsonRequest.addProperty("prompt", prompt);
+        jsonRequest.addProperty("max_tokens_to_sample", 2048);
+        jsonRequest.addProperty("temperature", 0.7);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.anthropic.com/v1/complete"))
+                .header("x-api-key", apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonRequest.toString()))
+                .build();
+
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() == 200) {
+            // Parse the response (simplified)
+            int startIdx = response.body().indexOf("\"completion\":\"") + 14;
+            int endIdx = response.body().indexOf("\"", startIdx);
+            return response.body().substring(startIdx, endIdx).replace("\\n", "\n").replace("\\\"", "\"");
+        } else {
+            return "Error: " + response.statusCode() + " - " + response.body();
+        }
+    }
+
+    private String sendOllamaRequest(HttpClient client, String modelId, String apiKey, String prompt)
+            throws IOException, InterruptedException {
+        JsonObject jsonRequest = new JsonObject();
+        jsonRequest.addProperty("model", modelId);
+        jsonRequest.addProperty("prompt", prompt);
+        jsonRequest.addProperty("stream", false);
+
+        // For Ollama, we might be using a custom endpoint from the apiKey field
+        String endpoint = apiKey.startsWith("http") ? apiKey : "http://localhost:11434/api/generate";
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
-                .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
-                .GET()
+                .POST(HttpRequest.BodyPublishers.ofString(jsonRequest.toString()))
                 .build();
 
-        return client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> {
-                    if (response.statusCode() == 200) {
-                        return parseModelsFromResponse(apiType, response.body());
-                    } else {
-                        return getDefaultModels(apiType);
-                    }
-                })
-                .exceptionally(e -> getDefaultModels(apiType));
-    }
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-    private String getModelListEndpoint(ApiType apiType) {
-        switch (apiType) {
-            case OPENAI:
-                return "https://api.openai.com/v1/models";
-            case ANTHROPIC:
-                return "https://api.anthropic.com/v1/models";
-            case OLLAMA:
-                return "http://localhost:11434/api/tags"; // Assuming local Ollama server
-            default:
-                return null;
+        if (response.statusCode() == 200) {
+            // Parse the response (simplified)
+            int startIdx = response.body().indexOf("\"response\":\"") + 12;
+            int endIdx = response.body().indexOf("\"", startIdx);
+            return response.body().substring(startIdx, endIdx).replace("\\n", "\n").replace("\\\"", "\"");
+        } else {
+            return "Error: " + response.statusCode() + " - " + response.body();
         }
     }
 
-    private String[] parseModelsFromResponse(ApiType apiType, String responseBody) {
-        // This is a simplified implementation
-        // In a real application, you'd use a JSON parser
-
-        switch (apiType) {
-            case OPENAI:
-                return new String[]{"gpt-4", "gpt-3.5-turbo"};
-            case ANTHROPIC:
-                return new String[]{"claude-3-opus", "claude-3-sonnet", "claude-3-haiku"};
-            case OLLAMA:
-                return new String[]{"llama2", "mistral", "codellama"};
-            default:
-                return new String[]{"default-model"};
-        }
-    }
-
-    private String[] getDefaultModels(ApiType apiType) {
-        switch (apiType) {
-            case OPENAI:
-                return new String[]{"gpt-4", "gpt-3.5-turbo"};
-            case ANTHROPIC:
-                return new String[]{"claude-3-opus", "claude-3-sonnet", "claude-3-haiku"};
-            case OLLAMA:
-                return new String[]{"llama2", "mistral", "codellama"};
-            default:
-                return new String[]{"default-model"};
-        }
+    /**
+     * Fetch available models for the given API type
+     */
+    public List<ModelInfo> fetchAvailableModels(ApiType apiType) throws GenAIApiException {
+        ApiClient apiClient = ApiFactory.createClient(apiType);
+        return apiClient.fetchAvailableModels();
     }
 }

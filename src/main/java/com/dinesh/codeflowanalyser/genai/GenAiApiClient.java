@@ -1,6 +1,8 @@
 package com.dinesh.codeflowanalyser.genai;
 
 
+import com.dinesh.codeflowanalyser.dto.ModelInfo;
+import com.dinesh.codeflowanalyser.exception.GenAIApiException;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -55,28 +57,33 @@ public class GenAiApiClient {
         }
     }
 
-    public static String getAccessToken(String username, String password) {
+    public static String getAccessToken(String username, String password) throws GenAIApiException {
         String urlString = "https://genai-api.visa.com/genai-api/v1/auth/login";
         String data = "{\"username\":\"" + username + "\", \"password\":\"" + password + "\"}";
         return extractAccessToken(Objects.requireNonNull(sendPostRequest(urlString, data, null)));
     }
 
-    public static boolean isAccessTokenValid(String accessToken) {
+    public static boolean isAccessTokenValid(String accessToken) throws GenAIApiException {
         String urlString = "https://genai-api.visa.com/genai-api/v1/auth/validate";
         return sendGetRequest(urlString, accessToken) != null;
     }
 
-    public static String getApplication(String accessToken) {
+    public static String getApplication(String accessToken) throws GenAIApiException {
         String urlString = "https://genai-api.visa.com/genai-api/v1/applications/";
         return extractApplicationName(Objects.requireNonNull(sendGetRequest(urlString, accessToken)));
     }
 
-    public static String[] getSupportedModels(String accessToken) {
+    public static String[] getSupportedModels(String accessToken) throws GenAIApiException {
         String urlString = "https://genai-api.visa.com/genai-api/v1/models/";
         return parseModelNames(Objects.requireNonNull(sendGetRequest(urlString, accessToken)));
     }
 
-    public static String queryLLM(String applicationName, String modelName, String accessToken) {
+    public static List<ModelInfo> getSupportedModelsWithId(String accessToken) throws GenAIApiException {
+        String urlString = "https://genai-api.visa.com/genai-api/v1/models/";
+        return parseModelNamesWithId(Objects.requireNonNull(sendGetRequest(urlString, accessToken)));
+    }
+
+    public static String queryLLM(String applicationName, String modelName, String accessToken) throws GenAIApiException {
         String urlString = "https://genai-api.visa.com/genai-api/v1/queries/chat";
         JSONObject data = new JSONObject();
         data.put("model_name", modelName);
@@ -88,7 +95,7 @@ public class GenAiApiClient {
         return sendPostRequest(urlString, data.toString(), accessToken);
     }
 
-    public static String queryLLM_hackathon(String applicationName, String modelName, String accessToken, List<String> code, String className, String method) {
+    public static String queryLLM_hackathon(String applicationName, String modelName, String accessToken, List<String> code, String className, String method) throws GenAIApiException {
         String urlString = "https://genai-api.visa.com/genai-api/v1/queries/chat";
         JSONObject data = new JSONObject();
         data.put("model_name", modelName);
@@ -102,7 +109,7 @@ public class GenAiApiClient {
         return sendPostRequest(urlString, data.toString(), accessToken);
     }
 
-    public static String queryLLM_hackathon(String modelName, List<String> code) {
+    public static String queryLLM_hackathon(String modelName, List<String> code) throws GenAIApiException {
         String urlString = "https://model-service-preview-hackathon.genai.visa.com/v1/chat/completions";
 
         JSONObject data = new JSONObject();
@@ -117,7 +124,7 @@ public class GenAiApiClient {
         return sendPostRequest(urlString, data.toString());
     }
 
-    private static String sendPostRequest(String urlString, String data){
+    private static String sendPostRequest(String urlString, String data) throws GenAIApiException {
         try{
             HttpURLConnection connection = getHttpURLConnection(urlString, data);
 
@@ -137,12 +144,11 @@ public class GenAiApiClient {
                         builder.append(line + "\\n");
                     }
                 }
-                return builder.toString();
+                throw new GenAIApiException("Response code : " + responseCode + " for url : " + urlString  + " message: " + builder.toString());
             }
         }catch (Exception e){
-            e.printStackTrace();
+            throw new GenAIApiException("GENI POST API Failed for url " + urlString + " : " + e.getMessage(), e);
         }
-        return null;
     }
 
     private static HttpURLConnection getHttpURLConnection(String urlString, String data) throws IOException {
@@ -162,7 +168,7 @@ public class GenAiApiClient {
         return connection;
     }
 
-    private static String sendPostRequest(String urlString, String data, String accessToken){
+    private static String sendPostRequest(String urlString, String data, String accessToken) throws GenAIApiException {
         try{
             HttpURLConnection connection = getHttpURLConnection(urlString, data, accessToken);
 
@@ -182,12 +188,11 @@ public class GenAiApiClient {
                         builder.append(line + "\\n");
                     }
                 }
-                return builder.toString();
+                throw new GenAIApiException("Response code : " + responseCode + " for url : " + urlString  + " message: " + builder.toString());
             }
         }catch (Exception e){
-            e.printStackTrace();
+            throw new GenAIApiException("GENI POST API Failed for url " + urlString + " : " + e.getMessage(), e);
         }
-        return null;
     }
 
     private static HttpURLConnection getHttpURLConnection(String urlString, String data, String accessToken) throws IOException {
@@ -209,7 +214,7 @@ public class GenAiApiClient {
         return connection;
     }
 
-    private static String sendGetRequest(String urlString, String accessToken){
+    private static String sendGetRequest(String urlString, String accessToken) throws GenAIApiException {
         try{
             URL url = new URL(urlString);
             HttpsURLConnection connection = (HttpsURLConnection) url.openConnection(Proxy.NO_PROXY);
@@ -225,10 +230,18 @@ public class GenAiApiClient {
                 }
             }else {
                 System.out.println("GET request failed, response code: " + responseCode);
+                StringBuilder builder = new StringBuilder();
+
+                try(BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getErrorStream()))){
+                    String line;
+                    while ((line = reader.readLine()) != null){
+                        builder.append(line + "\\n");
+                    }
+                }
+                throw new GenAIApiException("Response code : " + responseCode + " for url : " + urlString + " message: " + builder.toString());
             }
         }catch (Exception e){
-            e.printStackTrace();
+            throw new GenAIApiException("GENI GET API Failed for url " + urlString + " : " + e.getMessage(), e);
         }
-        return null;
     }
 }

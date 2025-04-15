@@ -65,7 +65,10 @@ public class ImpactedMethodAnalyzer {
     public List<String> getImpactedFilesList(Map<String, String> classNameToAbsPathMap){
         LinkedList<String> impactedFiles = new LinkedList<>();
         for (String className : classToClassHeaderAndMethodsMap.keySet()) {
-            impactedFiles.add(classNameToAbsPathMap.get(className));
+            String path = classNameToAbsPathMap.get(className);
+            if(path != null){
+                impactedFiles.add(path);
+            }
         }
         return impactedFiles;
     }

@@ -1,5 +1,8 @@
 package com.dinesh.codeflowanalyser.service;
 
+import com.dinesh.codeflowanalyser.api.ApiClient;
+import com.dinesh.codeflowanalyser.api.ApiFactory;
+import com.dinesh.codeflowanalyser.api.ApiType;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.OSProcessHandler;
@@ -42,7 +45,7 @@ public final class AiderService {
      * @param onOutput Callback to receive output from Aider
      * @return CompletableFuture that completes when the process is started
      */
-    public CompletableFuture<Void> startAiderSession(List<String> classNames, String prompt, Consumer<String> onOutput) {
+    public CompletableFuture<Void> startAiderSession(ApiType apiType, String model, List<String> classNames, String prompt, Consumer<String> onOutput) {
         CompletableFuture<Void> future = new CompletableFuture<>();
 
         try {
@@ -56,30 +59,20 @@ public final class AiderService {
             pendingClassNames = classNames;
             pendingPrompt = prompt;
 
-            // Get the OLLAMA_API_BASE environment variable
-            String ollamaApiBase = System.getenv("OLLAMA_API_BASE");
-            if (ollamaApiBase == null || ollamaApiBase.isEmpty()) {
-                onOutput.accept("Error: OLLAMA_API_BASE environment variable is not set\n");
-                future.completeExceptionally(new IllegalStateException("OLLAMA_API_BASE not set"));
+            ApiClient apiClient = ApiFactory.createClient(apiType);
+            GeneralCommandLine generalCommandLine = null;
+            try {
+                generalCommandLine = apiClient.getGeneralCommandLine(project, model);
+            }catch (IllegalStateException e){
+                onOutput.accept("Error: " + e.getMessage() + "\n");
+                future.completeExceptionally(e);
                 return future;
             }
 
-            // Build command to start aider with the specified model
-            GeneralCommandLine commandLine = new GeneralCommandLine("aider");
-            commandLine.setWorkDirectory(project.getBasePath());
 
-            // Add model and API key parameters
-            commandLine.addParameter("--model");
-            commandLine.addParameter("ollama_chat/llama3.2");
-            commandLine.addParameter("--api-key");
-            commandLine.addParameter(ollamaApiBase);
-
-            // Set environment variables
-            Map<String, String> env = commandLine.getEnvironment();
-            env.put("OLLAMA_API_BASE", ollamaApiBase);
-
+            generalCommandLine.setRedirectErrorStream(true);
             // Start the process
-            currentProcessHandler = new OSProcessHandler(commandLine);
+            currentProcessHandler = new OSProcessHandler(generalCommandLine);
             this.outputConsumer = onOutput;
 
             // Add listener to capture output and detect when session is ready
@@ -91,6 +84,7 @@ public final class AiderService {
                         outputConsumer.accept(text);
                     }
 
+                    System.out.println(text);
                     // Detect when the aider session is initialized and ready for commands
                     // This is a heuristic - we're looking for the prompt pattern
                     if (!sessionInitialized && text.contains(">") && text.trim().endsWith(">")) {
@@ -98,6 +92,10 @@ public final class AiderService {
                         // Add the files one by one
                         addClassFilesAndSendPrompt();
                     }
+                    /*if(text.contains("(Y)es/(N)o")){
+                        System.out.println("Prompting yes or no");
+                        sendInput("Yes");
+                    }*/
                 }
 
                 @Override
@@ -140,8 +138,8 @@ public final class AiderService {
             try {
                 for (String className : pendingClassNames) {
                     // Convert class name to file path (assuming standard Java package structure)
-                    String filePath = className.replace('.', '/') + ".java";
-                    String addCommand = "/add " + filePath;
+                    //String filePath = className.replace('.', '/') + ".java";
+                    String addCommand = "/add " + className;
 
                     // Send the /add command
                     sendInput(addCommand);
