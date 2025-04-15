@@ -6,6 +6,7 @@ import com.dinesh.codeflowanalyser.util.ApiKeyManager;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.project.Project;
 
+import java.io.IOException;
 import java.util.List;
 
 public interface ApiClient {
@@ -16,4 +17,7 @@ public interface ApiClient {
     default boolean isVirtualEnvEnabled(){
         return ApiKeyManager.isVirtualEnvironmentEnabled();
     }
+
+    String chatWithGenAIApi(String model, List<String> impactedClassesWithPrompt)
+            throws GenAIApiException;
 }

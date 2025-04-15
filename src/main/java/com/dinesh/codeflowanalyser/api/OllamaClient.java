@@ -1,6 +1,8 @@
 package com.dinesh.codeflowanalyser.api;
 
 import com.dinesh.codeflowanalyser.dto.ModelInfo;
+import com.dinesh.codeflowanalyser.exception.GenAIApiException;
+import com.dinesh.codeflowanalyser.service.AgentType;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -81,5 +83,50 @@ public class OllamaClient implements ApiClient {
         env.put("OLLAMA_API_BASE", apiBase);
 
         return commandLine;
+    }
+
+    @Override
+    public String chatWithGenAIApi(String model, List<String> impactedClassesWithPrompt) throws GenAIApiException {
+
+        HttpClient client = HttpClient.newHttpClient();
+        JsonObject jsonRequest = new JsonObject();
+        JsonArray prompts = new JsonArray();
+        for (String prompt : impactedClassesWithPrompt) {
+            JsonObject promptObj = new JsonObject();
+            promptObj.addProperty("text", prompt);
+            prompts.add(promptObj);
+        }
+        jsonRequest.addProperty("model", model);
+        jsonRequest.add("prompts", prompts);
+        jsonRequest.addProperty("stream", false);
+
+        // For Ollama, we might be using a custom endpoint from the apiKey field
+        String endpoint = ApiKeyManager.getApiBase(ApiType.OLLAMA) ;
+        if( endpoint == null || endpoint.trim().isEmpty()){
+            throw new IllegalStateException("OPENAI_API_BASE not set");
+        }
+        endpoint = endpoint +  "/api/generate";
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(endpoint))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonRequest.toString()))
+                .build();
+
+        HttpResponse<String> response = null;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException | InterruptedException e) {
+            throw new GenAIApiException("Failed to get response from Ollama API : " + e.getMessage() , e);
+        }
+
+        if (response.statusCode() == 200) {
+            // Parse the response (simplified)
+            int startIdx = response.body().indexOf("\"response\":\"") + 12;
+            int endIdx = response.body().indexOf("\"", startIdx);
+            return response.body().substring(startIdx, endIdx).replace("\\n", "\n").replace("\\\"", "\"");
+        } else {
+            return "Error: " + response.statusCode() + " - " + response.body();
+        }
     }
 }

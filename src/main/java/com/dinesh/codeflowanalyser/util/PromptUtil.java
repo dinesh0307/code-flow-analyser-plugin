@@ -60,4 +60,8 @@ public final class PromptUtil {
 
         }
     }
+
+    public static String getSystemPrompt(){
+        return "You are an experienced java developer with good understanding about high level design and low level design and good at understanding the functionality by reading the code";
+    }
 }

@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Scanner;
 
@@ -45,26 +44,18 @@ public class LLMManager {
         return ret;
     }
 
-    public static void invokeLLM(List<String> code, String className, String method) throws GenAIApiException {
-        Scanner scanner = new Scanner(System.in);
+    public static String invokeLLM(List<String> code, String userName, String password, String model) throws GenAIApiException {
 
-        System.out.print("Enter username: ");
-        String username = "";
-
-        System.out.print("Enter password: ");
-        String password = "";
-
-        String accessToken = getAccessToken(username, password);
+        String accessToken = getAccessToken(userName, password);
         if(!isAccessTokenValid(accessToken)){
             System.out.println("Invalid Access Token");
-            return;
+            throw new GenAIApiException("Invalid Access token");
         }
 
         String application = getApplication(accessToken);
-        //String[] models = getSupportedModels(accessToken);
-        String out = queryLLM_hackathon(application, "gpt-4o-2", accessToken, code, className, method);
+        String out = queryLLM_hackathon(application, model, accessToken, code);
         try {
-            extractAndPrettyPrint(out);
+            return extractAndPrettyPrint(out);
         } catch (Exception e){
             throw new RuntimeException(e);
         }
@@ -80,8 +71,8 @@ public class LLMManager {
         String messageContent = rootNode.path("full_model_response").path("choices").path(0).path("message").path("content").asText();
         sb.append("Message Content:");
 
-        System.out.println("Message Content:");
-        System.out.println(messageContent);
+        /*System.out.println("Message Content:");
+        System.out.println(messageContent);*/
 
         // Extract usage
         JsonNode usageNode = rootNode.path("full_model_response").path("usage");
@@ -89,8 +80,8 @@ public class LLMManager {
         sb.append("Usage:");
         sb.append(prettyPrintedStr);
 
-        System.out.println("Usage:");
-        System.out.println(prettyPrintedStr);
+        /*System.out.println("Usage:");
+        System.out.println(prettyPrintedStr);*/
         return sb.toString();
     }
 

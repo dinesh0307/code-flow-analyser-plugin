@@ -33,7 +33,8 @@ public class CodeAnalyzer {
             // After LLM response
             //List<String> impactedFileList = impactedMethodAnalyzer.getImpactedFileList(codeParser.getClassNameToAbsolutePathMap());
 
-            LLMManager.invokeLLM(impactedCodeBlocks, className, method);
+            //pass username, password and model
+            LLMManager.invokeLLM(impactedCodeBlocks, null,null, null);
         } catch (IOException | GenAIApiException e) {
             e.printStackTrace();
         }

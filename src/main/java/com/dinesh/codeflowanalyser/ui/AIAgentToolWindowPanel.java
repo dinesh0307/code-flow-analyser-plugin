@@ -274,7 +274,7 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
         // Disable UI while processing
         setComponentsEnabled(false);
 
-        List<String> impactedClasses = null;
+        final List<String> impactedClasses;
         try {
             JavaParserService javaParserService = project.getService(JavaParserService.class);
             impactedClasses = javaParserService.getImpactedClasses(className, methodName, agentType, analysisType);
@@ -322,9 +322,10 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
                     CustomAgentService customAgentService = project.getService(CustomAgentService.class);
                     return customAgentService.runAnalysis(
                             apiType,
-                            model.getId(),
+                            model.getDisplayName(),
                             className,
-                            methodName
+                            methodName,
+                            impactedClasses
                     );
                 }
 

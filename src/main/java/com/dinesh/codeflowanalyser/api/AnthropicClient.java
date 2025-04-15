@@ -1,10 +1,12 @@
 package com.dinesh.codeflowanalyser.api;
 
 import com.dinesh.codeflowanalyser.dto.ModelInfo;
+import com.dinesh.codeflowanalyser.exception.GenAIApiException;
 import com.dinesh.codeflowanalyser.util.ApiKeyManager;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.project.Project;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -48,5 +50,10 @@ public class AnthropicClient implements ApiClient {
     @Override
     public GeneralCommandLine getGeneralCommandLine(Project project, String model) {
         return null;
+    }
+
+    @Override
+    public String chatWithGenAIApi(String model, List<String> impactedClassesWithPrompt) throws GenAIApiException {
+        return "";
     }
 }

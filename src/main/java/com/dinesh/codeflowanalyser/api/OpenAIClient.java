@@ -4,10 +4,12 @@ import com.dinesh.codeflowanalyser.dto.Credential;
 import com.dinesh.codeflowanalyser.dto.ModelInfo;
 import com.dinesh.codeflowanalyser.exception.GenAIApiException;
 import com.dinesh.codeflowanalyser.genai.GenAiApiClient;
+import com.dinesh.codeflowanalyser.genai.LLMManager;
 import com.dinesh.codeflowanalyser.util.ApiKeyManager;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.project.Project;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -99,21 +101,35 @@ public class OpenAIClient implements ApiClient {
             commandLine = new GeneralCommandLine("/bin/bash");
             commandLine.setWorkDirectory(project.getBasePath());
             commandLine.addParameter("-c");
-            commandLine.addParameter("source " + aiderVirtualEnvPath + " && aider --model " + model + " --api-key openai=" + apiKey);
+            commandLine.addParameter("source " + aiderVirtualEnvPath + " && aider --model openai/" + model + " --api-key openai=" + apiKey);
         }else {
             commandLine = new GeneralCommandLine("aider");
             commandLine.setWorkDirectory(project.getBasePath());
             // Add model and API key parameters
             commandLine.addParameter("--model");
-            commandLine.addParameter(model);
+            commandLine.addParameter("openai/" + model);
             commandLine.addParameter("--api-key");
             commandLine.addParameter("openai="+apiKey);
         }
         //commandLine.addParameter(apiBase);
         Map<String, String> env = commandLine.getEnvironment();
         env.put("OPENAI_API_BASE", apiBase);
-        env.putIfAbsent("SSL_CERT_FILE", aiderCertFilePath);
+        env.put("SSL_CERT_FILE", aiderCertFilePath);
 
         return commandLine;
+    }
+
+    @Override
+    public String chatWithGenAIApi(String model, List<String> impactedClassesWithPrompt)
+            throws GenAIApiException {
+        String user = apiCredentials.getUser();
+        String password = apiCredentials.getPassword();
+        if(user == null ||  user.trim().isEmpty() ){
+            throw new IllegalStateException("OPEANAI_USER is not set");
+        }
+        if(password == null || password.trim().isEmpty()){
+            throw new IllegalStateException("OPEANAI_PASSWORD is not set");
+        }
+        return LLMManager.invokeLLM(impactedClassesWithPrompt, user, password, model);
     }
 }

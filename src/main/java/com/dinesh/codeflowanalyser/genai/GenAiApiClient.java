@@ -3,6 +3,7 @@ package com.dinesh.codeflowanalyser.genai;
 
 import com.dinesh.codeflowanalyser.dto.ModelInfo;
 import com.dinesh.codeflowanalyser.exception.GenAIApiException;
+import com.dinesh.codeflowanalyser.util.PromptUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -95,13 +96,13 @@ public class GenAiApiClient {
         return sendPostRequest(urlString, data.toString(), accessToken);
     }
 
-    public static String queryLLM_hackathon(String applicationName, String modelName, String accessToken, List<String> code, String className, String method) throws GenAIApiException {
+    public static String queryLLM_hackathon(String applicationName, String modelName, String accessToken, List<String> code) throws GenAIApiException {
         String urlString = "https://genai-api.visa.com/genai-api/v1/queries/chat";
         JSONObject data = new JSONObject();
         data.put("model_name", modelName);
         data.put("application_name", applicationName);
         JSONArray query = new JSONArray();
-        query.put(new JSONObject().put("role", "system").put("content", "You are an experienced java developer with good understanding about high level design and low level design and good at understanding the functionality by reading the code"));
+        query.put(new JSONObject().put("role", "system").put("content", PromptUtil.getSystemPrompt()));
         for (String content : code) {
             query.put(new JSONObject().put("role", "user").put("content", content));
         }
