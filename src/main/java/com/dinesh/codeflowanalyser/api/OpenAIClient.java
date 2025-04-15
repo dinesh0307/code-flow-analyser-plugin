@@ -75,29 +75,34 @@ public class OpenAIClient implements ApiClient {
 
     @Override
     public GeneralCommandLine getGeneralCommandLine(Project project, String model) {
-        GeneralCommandLine commandLine = null;
-
-        if(isVirtualEnvEnabled()){
-            commandLine = new GeneralCommandLine("/bin/bash");
-            commandLine.setWorkDirectory(project.getBasePath());
-            commandLine.addParameter("-c");
-            commandLine.addParameter("source ~/myenv/bin/activate && aider");
-        }else {
-            commandLine = new GeneralCommandLine("aider");
-            commandLine.setWorkDirectory(project.getBasePath());
-        }
-        // Add model and API key parameters
-        commandLine.addParameter("--model");
-        commandLine.addParameter(model);
-        commandLine.addParameter("--api-key");
         String apiKey = getApiKey();
         if(apiKey == null || apiKey.trim().isEmpty()){
             throw new IllegalStateException("openai.api_key not set");
         }
-        commandLine.addParameter("openai="+apiKey);
+
         String apiBase = ApiKeyManager.getApiBase(ApiType.OPENAI);
         if( apiBase == null || apiBase.trim().isEmpty()){
             throw new IllegalStateException("OPENAI_API_BASE not set");
+        }
+        GeneralCommandLine commandLine = null;
+
+        if(isVirtualEnvEnabled()){
+            String aiderVirtualEnvPath = ApiKeyManager.getAiderVirtualEnvPath();
+            if( aiderVirtualEnvPath == null || aiderVirtualEnvPath.trim().isEmpty()){
+                throw new IllegalStateException("ENABLE_VIRTUAL_ENV is enabled but AIDER_VIRTUAL_ENV_PATH not set");
+            }
+            commandLine = new GeneralCommandLine("/bin/bash");
+            commandLine.setWorkDirectory(project.getBasePath());
+            commandLine.addParameter("-c");
+            commandLine.addParameter("source " + aiderVirtualEnvPath + " && aider --model " + model + " --api-key openai=" + apiKey);
+        }else {
+            commandLine = new GeneralCommandLine("aider");
+            commandLine.setWorkDirectory(project.getBasePath());
+            // Add model and API key parameters
+            commandLine.addParameter("--model");
+            commandLine.addParameter(model);
+            commandLine.addParameter("--api-key");
+            commandLine.addParameter("openai="+apiKey);
         }
         //commandLine.addParameter(apiBase);
         Map<String, String> env = commandLine.getEnvironment();

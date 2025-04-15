@@ -100,4 +100,8 @@ public class ApiKeyManager {
     public static boolean isVirtualEnvironmentEnabled(){
         return Boolean.parseBoolean(properties.getProperty("ENABLE_VIRTUAL_ENV"));
     }
+
+    public static String getAiderVirtualEnvPath(){
+        return properties.getProperty("AIDER_VIRTUAL_ENV_PATH");
+    }
 }
