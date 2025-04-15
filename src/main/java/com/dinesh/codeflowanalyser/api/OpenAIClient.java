@@ -84,6 +84,11 @@ public class OpenAIClient implements ApiClient {
         if( apiBase == null || apiBase.trim().isEmpty()){
             throw new IllegalStateException("OPENAI_API_BASE not set");
         }
+
+        String aiderCertFilePath = ApiKeyManager.getAiderCertFilePath();
+        if( aiderCertFilePath == null || aiderCertFilePath.trim().isEmpty()){
+            throw new IllegalStateException("SSL_CERT_FILE not set");
+        }
         GeneralCommandLine commandLine = null;
 
         if(isVirtualEnvEnabled()){
@@ -107,6 +112,7 @@ public class OpenAIClient implements ApiClient {
         //commandLine.addParameter(apiBase);
         Map<String, String> env = commandLine.getEnvironment();
         env.put("OPENAI_API_BASE", apiBase);
+        env.putIfAbsent("SSL_CERT_FILE", aiderCertFilePath);
 
         return commandLine;
     }

@@ -104,4 +104,8 @@ public class ApiKeyManager {
     public static String getAiderVirtualEnvPath(){
         return properties.getProperty("AIDER_VIRTUAL_ENV_PATH");
     }
+
+    public static String getAiderCertFilePath(){
+        return properties.getProperty("SSL_CERT_FILE");
+    }
 }
