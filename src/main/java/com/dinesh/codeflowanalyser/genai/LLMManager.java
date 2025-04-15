@@ -70,8 +70,8 @@ public class LLMManager {
 
         // Extract message content
         String messageContent = rootNode.path("full_model_response").path("choices").path(0).path("message").path("content").asText();
-        sb.append("Message Content:");
-
+        sb.append("Message Content: \n");
+        sb.append(messageContent);
         /*System.out.println("Message Content:");
         System.out.println(messageContent);*/
 
