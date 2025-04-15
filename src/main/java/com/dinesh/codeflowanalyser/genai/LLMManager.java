@@ -52,8 +52,9 @@ public class LLMManager {
             throw new GenAIApiException("Invalid Access token");
         }
 
-        String application = getApplication(accessToken);
-        String out = queryLLM_hackathon(application, model, accessToken, code);
+        //Hardcode application name as hackathon for now since application name returned in getApplication is not working
+        //String application = getApplication(accessToken);
+        String out = queryLLM_hackathon("hackathon", model, accessToken, code);
         try {
             return extractAndPrettyPrint(out);
         } catch (Exception e){
