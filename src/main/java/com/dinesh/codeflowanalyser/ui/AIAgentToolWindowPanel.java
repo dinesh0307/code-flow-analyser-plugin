@@ -263,7 +263,7 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
             return;
         }
 
-        if (model == null || model.getId().isEmpty()) {
+        if (model == null || model.getDisplayName().isEmpty()) {
             JOptionPane.showMessageDialog(this,
                     "Please select a valid model.",
                     "Validation Error",
