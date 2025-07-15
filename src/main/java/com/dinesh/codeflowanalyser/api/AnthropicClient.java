@@ -1,7 +1,9 @@
 package com.dinesh.codeflowanalyser.api;
 
+import com.dinesh.codeflowanalyser.dto.Credential;
 import com.dinesh.codeflowanalyser.dto.ModelInfo;
 import com.dinesh.codeflowanalyser.exception.GenAIApiException;
+import com.dinesh.codeflowanalyser.genai.LLMManager;
 import com.dinesh.codeflowanalyser.util.ApiKeyManager;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.project.Project;
@@ -13,6 +15,7 @@ import java.util.List;
 
 public class AnthropicClient implements ApiClient {
     // Anthropic doesn't have a specific endpoint to list models, so we'll hardcode the available models
+    private static final Credential apiCredentials = ApiKeyManager.getApiCredentials(ApiType.ANTHROPIC);
 
     @Override
     public List<ModelInfo> fetchAvailableModels() {
@@ -54,6 +57,14 @@ public class AnthropicClient implements ApiClient {
 
     @Override
     public String chatWithGenAIApi(String model, List<String> impactedClassesWithPrompt) throws GenAIApiException {
-        return "";
+        String user = apiCredentials.getUser();
+        String password = apiCredentials.getPassword();
+        if(user == null ||  user.trim().isEmpty() ){
+            throw new IllegalStateException("ANTHROPIC_USER is not set");
+        }
+        if(password == null || password.trim().isEmpty()){
+            throw new IllegalStateException("ANTHROPIC_PASSWORD is not set");
+        }
+        return LLMManager.invokeLLM(impactedClassesWithPrompt, user, password, model);
     }
 }

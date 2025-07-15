@@ -56,10 +56,38 @@ public class LLMManager {
         //String application = getApplication(accessToken);
         String out = queryLLM_hackathon("hackathon", model, accessToken, code);
         try {
-            return extractAndPrettyPrint(out);
+            if(model.startsWith("claude")){
+                return extractAndPrettyPrintClaude(out);
+            }else {
+                return extractAndPrettyPrint(out);
+            }
         } catch (Exception e){
             throw new RuntimeException(e);
         }
+    }
+
+    public static String extractAndPrettyPrintClaude(String jsonResponse) throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode rootNode = objectMapper.readTree(jsonResponse);
+
+        StringBuilder sb = new StringBuilder();
+
+        // Extract message content
+        String messageContent = rootNode.path("full_model_response").path("content").path(0).path("text").asText();
+        sb.append("Message Content: \n");
+        sb.append(messageContent);
+        /*System.out.println("Message Content:");
+        System.out.println(messageContent);*/
+
+        // Extract usage
+        JsonNode usageNode = rootNode.path("full_model_response").path("usage");
+        String prettyPrintedStr = prettyPrintJson(usageNode.toString());
+        sb.append("Usage:");
+        sb.append(prettyPrintedStr);
+
+        /*System.out.println("Usage:");
+        System.out.println(prettyPrintedStr);*/
+        return sb.toString();
     }
 
     public static String extractAndPrettyPrint(String jsonResponse) throws Exception {
