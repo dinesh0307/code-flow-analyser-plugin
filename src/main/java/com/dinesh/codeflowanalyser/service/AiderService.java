@@ -136,17 +136,19 @@ public final class AiderService {
         // Schedule a task to add files with a small delay between commands
         CompletableFuture.runAsync(() -> {
             try {
+                StringBuilder builder = new StringBuilder();
+                builder.append("/add ");
                 for (String className : pendingClassNames) {
                     // Convert class name to file path (assuming standard Java package structure)
                     //String filePath = className.replace('.', '/') + ".java";
-                    String addCommand = "/add " + className;
+                    builder.append(className + " ");
 
-                    // Send the /add command
-                    sendInput(addCommand);
-
-                    // Wait a bit to let Aider process the command
-                    Thread.sleep(500);
                 }
+                // Send the /add command
+                sendInput(builder.toString());
+
+                // Wait a bit to let Aider process the command
+                Thread.sleep(500);
 
                 // After adding all files, send the initial prompt
                 if (pendingPrompt != null && !pendingPrompt.isEmpty()) {

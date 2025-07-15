@@ -26,15 +26,15 @@ public class AnthropicClient implements ApiClient {
 
         // Since Anthropic doesn't have a straightforward model listing endpoint,
         // we'll use a predefined list of models
-        List<String> modelIds = Arrays.asList(
+        /*List<String> modelIds = Arrays.asList(
                 "claude-3-7-sonnet-20250219",
                 "claude-3-5-haiku-20250501",
                 "claude-3-5-sonnet-20250501",
                 "claude-3-opus-20240229",
                 "claude-3-sonnet-20240229",
                 "claude-3-haiku-20240307"
-        );
-
+        );*/
+        List<String> modelIds = ApiKeyManager.getAnthropicModels();
         for (String id : modelIds) {
             models.add(new ModelInfo(id, id));
         }

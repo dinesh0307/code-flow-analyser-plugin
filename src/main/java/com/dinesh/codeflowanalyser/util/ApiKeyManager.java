@@ -7,6 +7,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 
 public class ApiKeyManager {
@@ -107,5 +110,14 @@ public class ApiKeyManager {
 
     public static String getAiderCertFilePath(){
         return properties.getProperty("SSL_CERT_FILE");
+    }
+
+    public static List<String> getAnthropicModels(){
+        String anthropicModelsList = properties.getProperty("ANTHROPIC_MODELS_LIST");
+        if(anthropicModelsList != null && !anthropicModelsList.isEmpty()){
+            String[] models = anthropicModelsList.split(",");
+            return Arrays.asList(models);
+        }
+        return Collections.emptyList();
     }
 }

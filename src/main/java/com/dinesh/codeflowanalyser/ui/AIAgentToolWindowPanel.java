@@ -18,7 +18,17 @@ import com.intellij.util.ui.JBUI;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ItemEvent;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import com.intellij.ui.jcef.JBCefApp;
+import com.intellij.ui.jcef.JBCefBrowser;
 
 public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
     private final Project project;
@@ -28,6 +38,7 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
     private JTextField classNameTextField;
     private JTextField methodNameTextField;
     private JButton analyzeButton;
+    private JButton displayDiagramButton; // New button for displaying diagrams
 
     // Panel for custom agent output
     private JPanel customAgentPanel;
@@ -69,6 +80,7 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
 
         // Set initial state
         updateUIBasedOnAgent((AgentType) agentComboBox.getSelectedItem());
+        updateDisplayDiagramButtonVisibility();
     }
 
     private JPanel createConfigPanel() {
@@ -150,16 +162,42 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
         analyzeButton = new JButton("Analyze");
         panel.add(analyzeButton, gbc);
 
+        // Display Diagram button (initially invisible)
+        gbc.gridx = 0;
+        gbc.gridy = 7;
+        gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.CENTER;
+        displayDiagramButton = new JButton("Display Diagram");
+        displayDiagramButton.setVisible(false);
+        displayDiagramButton.setEnabled(false);
+        displayDiagramButton.addActionListener(e -> displayMermaidDiagram());
+        panel.add(displayDiagramButton, gbc);
+
         // Add listeners
         agentComboBox.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
                 updateUIBasedOnAgent((AgentType) e.getItem());
             }
+            if(AgentType.CUSTOM_AGENT == (AgentType)agentComboBox.getSelectedItem()){
+                analysisTypeComboBox.removeItem(AnalysisType.ADD_CLASSES_ONLY);
+            }else {
+                AnalysisType addClass = analysisTypeComboBox.getItemAt(3);
+                if(addClass == null){
+                    analysisTypeComboBox.addItem(AnalysisType.ADD_CLASSES_ONLY);
+                }
+            }
+            updateDisplayDiagramButtonVisibility();
         });
 
         apiComboBox.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
                 loadModelsForSelectedApi();
+            }
+        });
+
+        analysisTypeComboBox.addItemListener(e -> {
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                updateDisplayDiagramButtonVisibility();
             }
         });
 
@@ -189,6 +227,20 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
         // Switch the visible panel based on agent type
         CardLayout cardLayout = (CardLayout) ((JPanel) aiderContainerPanel.getParent()).getLayout();
         cardLayout.show((Container) aiderContainerPanel.getParent(), agentType.toString());
+    }
+
+    private void updateDisplayDiagramButtonVisibility() {
+        AnalysisType analysisType = (AnalysisType) analysisTypeComboBox.getSelectedItem();
+        AgentType agentType = (AgentType) agentComboBox.getSelectedItem();
+
+        // Show button only for CUSTOM_AGENT with flow or sequence diagram analysis types
+        boolean shouldShow = agentType == AgentType.CUSTOM_AGENT &&
+                (analysisType == AnalysisType.GENERATE_FLOW_DIAGRAM ||
+                        analysisType == AnalysisType.GENERATE_SEQUENCE_DIAGRAM);
+
+        displayDiagramButton.setVisible(shouldShow);
+        // Button will be enabled after analysis completes
+        displayDiagramButton.setEnabled(false);
     }
 
     private void loadModelsForSelectedApi() {
@@ -271,6 +323,11 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
             return;
         }
 
+        // Reset the Display Diagram button
+        if (displayDiagramButton.isVisible()) {
+            displayDiagramButton.setEnabled(false);
+        }
+
         // Disable UI while processing
         setComponentsEnabled(false);
 
@@ -283,13 +340,17 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
                     e.getMessage(),
                     "Java Parser Exception",
                     JOptionPane.ERROR_MESSAGE);
+            setComponentsEnabled(true);
             return;
         }
 
         if (agentType == AgentType.AIDER) {
             // Use existing Aider service
             AiderService aiderService = project.getService(AiderService.class);
-            String prompt = PromptUtil.generatePromptBasedOnAnalysisTypeForAiderAgent(analysisType, className, methodName);
+            String prompt = null;
+            if(analysisType != AnalysisType.ADD_CLASSES_ONLY){
+                prompt = PromptUtil.generatePromptBasedOnAnalysisTypeForAiderAgent(analysisType, className, methodName);
+            }
 
             aiderService.startAiderSession(
                     apiType, model.getDisplayName(),
@@ -334,6 +395,11 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
                     try {
                         String result = get();
                         customAgentOutputArea.setText(result);
+
+                        // Enable diagram button if we have diagram code in the result
+                        if (isDiagramAnalysisType() && containsMermaidDiagram(result)) {
+                            displayDiagramButton.setEnabled(true);
+                        }
                     } catch (Exception e) {
                         customAgentOutputArea.setText("Error during analysis: " + e.getMessage());
                     } finally {
@@ -344,6 +410,192 @@ public class AIAgentToolWindowPanel extends JBPanel<AIAgentToolWindowPanel> {
         }
     }
 
+    private boolean isDiagramAnalysisType() {
+        AnalysisType analysisType = (AnalysisType) analysisTypeComboBox.getSelectedItem();
+        return analysisType == AnalysisType.GENERATE_FLOW_DIAGRAM ||
+                analysisType == AnalysisType.GENERATE_SEQUENCE_DIAGRAM;
+    }
+
+    private boolean containsMermaidDiagram(String text) {
+        // Look for code blocks that might contain a mermaid diagram
+        return text.contains("```") &&
+                (text.contains("flowchart") || text.contains("sequenceDiagram") ||
+                        text.contains("graph") || text.contains("classDiagram"));
+    }
+
+    private void displayMermaidDiagram() {
+        String outputText = customAgentOutputArea.getText();
+        String mermaidCode = extractMermaidDiagram(outputText);
+
+        if (mermaidCode != null && !mermaidCode.isEmpty()) {
+            showMermaidDiagramDialog(mermaidCode);
+        } else {
+            JOptionPane.showMessageDialog(this,
+                    "No valid Mermaid diagram found in the output.",
+                    "Diagram Error",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private String extractMermaidDiagram(String text) {
+        // Pattern to match content between triple backticks
+        Pattern pattern = Pattern.compile("```(?:mermaid)?\\s*([\\s\\S]*?)```");
+        Matcher matcher = pattern.matcher(text);
+
+        // Find first match that looks like a mermaid diagram
+        while (matcher.find()) {
+            String potentialDiagram = matcher.group(1).trim();
+            if (potentialDiagram.contains("flowchart") || potentialDiagram.contains("sequenceDiagram") ||
+                    potentialDiagram.contains("graph") || potentialDiagram.contains("classDiagram")) {
+                return potentialDiagram;
+            }
+        }
+        return null;
+    }
+
+    /*private void showMermaidDiagramDialog(String mermaidCode) {
+        try {
+            // Create a temporary HTML file with the Mermaid diagram
+            Path tempFile = Files.createTempFile("mermaid-diagram-", ".html");
+            File htmlFile = tempFile.toFile();
+            htmlFile.deleteOnExit();
+
+            String html = "<!DOCTYPE html>\n" +
+                    "<html>\n" +
+                    "<head>\n" +
+                    "    <meta charset=\"UTF-8\">\n" +
+                    "    <title>Mermaid Diagram</title>\n" +
+                    "    <script src=\"https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js\"></script>\n" +
+                    "    <script>\n" +
+                    "        mermaid.initialize({startOnLoad: true, theme: 'default'});\n" +
+                    "    </script>\n" +
+                    "    <style>\n" +
+                    "        body { font-family: sans-serif; margin: 20px; }\n" +
+                    "        .diagram-container { width: 100%; overflow: auto; }\n" +
+                    "    </style>\n" +
+                    "</head>\n" +
+                    "<body>\n" +
+                    "    <div class=\"diagram-container\">\n" +
+                    "        <div class=\"mermaid\">\n" +
+                    mermaidCode +
+                    "        </div>\n" +
+                    "    </div>\n" +
+                    "</body>\n" +
+                    "</html>";
+
+            // Write the HTML to the file
+            try (FileWriter writer = new FileWriter(htmlFile)) {
+                writer.write(html);
+            }
+
+            // Create and setup the dialog
+            JDialog dialog = new JDialog();
+            dialog.setTitle("Mermaid Diagram Viewer");
+            dialog.setSize(800, 600);
+            dialog.setLocationRelativeTo(this);
+
+            // Create web viewer inside the dialog
+            JEditorPane editorPane = new JEditorPane();
+            editorPane.setEditable(false);
+            editorPane.setContentType("text/html");
+
+            // Load the HTML file
+            editorPane.setPage(htmlFile.toURI().toURL());
+
+            JScrollPane scrollPane = new JScrollPane(editorPane);
+            dialog.add(scrollPane);
+
+            // Close button at the bottom
+            JButton closeButton = new JButton("Close");
+            closeButton.addActionListener(e -> dialog.dispose());
+
+            JPanel buttonPanel = new JPanel();
+            buttonPanel.add(closeButton);
+
+            dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+            // Show the dialog
+            dialog.setVisible(true);
+
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this,
+                    "Error displaying diagram: " + e.getMessage(),
+                    "Diagram Error",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }*/
+
+    private void showMermaidDiagramDialog(String mermaidCode) {
+        try {
+            // Create a temporary HTML file with the Mermaid diagram
+            Path tempFile = Files.createTempFile("mermaid-diagram-", ".html");
+            File htmlFile = tempFile.toFile();
+            htmlFile.deleteOnExit();
+
+            String html = "<!DOCTYPE html>\n" +
+                    "<html>\n" +
+                    "<head>\n" +
+                    "    <meta charset=\"UTF-8\">\n" +
+                    "    <title>Mermaid Diagram</title>\n" +
+                    "    <script src=\"https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js\"></script>\n" +
+                    "    <script>\n" +
+                    "        mermaid.initialize({startOnLoad: true, theme: 'default'});\n" +
+                    "    </script>\n" +
+                    "    <style>\n" +
+                    "        body { font-family: sans-serif; margin: 20px; }\n" +
+                    "        .diagram-container { width: 100%; overflow: auto; }\n" +
+                    "    </style>\n" +
+                    "</head>\n" +
+                    "<body>\n" +
+                    "    <div class=\"diagram-container\">\n" +
+                    "        <div class=\"mermaid\">\n" +
+                    mermaidCode +
+                    "        </div>\n" +
+                    "    </div>\n" +
+                    "</body>\n" +
+                    "</html>";
+
+            // Write the HTML to the file
+            try (FileWriter writer = new FileWriter(htmlFile)) {
+                writer.write(html);
+            }
+
+            // Check if JCEF is supported
+            if (!JBCefApp.isSupported()) {
+                throw new RuntimeException("JCEF is not supported in this environment");
+            }
+
+            // Create and setup the dialog
+            JDialog dialog = new JDialog();
+            dialog.setTitle("Mermaid Diagram Viewer");
+            dialog.setSize(800, 600);
+            dialog.setLocationRelativeTo(this);
+
+            // Use JCEF browser
+            JBCefBrowser browser = JBCefBrowser.createBuilder()
+                    .setUrl(htmlFile.toURI().toString())
+                    .build();
+
+            dialog.add(browser.getComponent(), BorderLayout.CENTER);
+
+            // Close button at the bottom
+            JButton closeButton = new JButton("Close");
+            closeButton.addActionListener(e -> dialog.dispose());
+
+            JPanel buttonPanel = new JPanel();
+            buttonPanel.add(closeButton);
+            dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+            // Show the dialog
+            dialog.setVisible(true);
+
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this,
+                    "Error displaying diagram: " + e.getMessage(),
+                    "Diagram Error",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
 
     private void setComponentsEnabled(boolean enabled) {
         agentComboBox.setEnabled(enabled);
